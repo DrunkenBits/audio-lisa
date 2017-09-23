@@ -15,8 +15,7 @@ const args = require("yargs")
 const wavStream = fs.createReadStream(args.target);
 const reader = wav.Reader();
 
-reader.on("format", (format) => {
-  console.log(format);
+reader.on("readable", (format) => {
   //reader.pipe(new Speaker(format));
 });
 
@@ -24,6 +23,13 @@ wavStream.pipe(reader);
 
 const data = [];
 
-reader.on("data", (byte) => {
-  console.log(byte.length);
+reader.on("data", (bytes) => {
+  for (let i = 0; i < bytes.byteLength; i+=2) {
+    data.push(bytes.readUInt16LE(i));
+  }
 }); 
+
+reader.on("end", () => {
+  console.log(data.length);
+});
+
