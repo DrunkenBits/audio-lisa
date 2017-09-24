@@ -3,6 +3,10 @@
 const fs = require("fs");
 const wav = require("wav");
 const Speaker = require("speaker");
+const Readable = require("stream").Readable;
+const WhiteNoise = require("./white-noise");
+const ReadableBuffer = require("./readable-buffer");
+const Sine = require("./sine");
 const args = require("yargs")
   .option("target", {
     alias: "t",
@@ -13,33 +17,57 @@ const args = require("yargs")
 ;
 
 const data = [];
-const data2 = [];
 let format = null;
+let speaker = null;
 
 const wavStream = fs.createReadStream(args.target);
 const reader = wav.Reader();
 
-reader.on("readable", (f) => {
-  //reader.pipe(new Speaker(format));
-  format = f;
-});
+reader.on("format", (format) => {
+  console.log(format);
+  speaker = new Speaker(format);
+})
 
 wavStream.pipe(reader);
 
 reader.on("data", (bytes) => {
-  for (let i = 0; i < bytes.byteLength; i+=2) {
+  for (let i = 0; i < bytes.byteLength; i += 2) {
     data.push(bytes.readUInt16LE(i));
-  }
-}); 
-
-reader.on("end", () => {
-  console.log(data.length);
-  
-  const sinLen = format.sampleRate * 2;
-  const sinFreq = 440 / (2 * Math.PI);
-  
-  for (var i = 0; i < sinLen; i++) {
-    data2.push((65536 * 0.5) * Math.sin()
   }
 });
 
+reader.on("end", () => {
+  const sines = [];
+  let values = null;
+  let maxLength = 0;
+
+  for (let k = 0; k < 10; k++) {
+    let length = 10.0 * Math.random();
+    let offset = 5.0 * Math.random();
+
+    if (maxLength < length + offset) {
+      maxLength = length + offset;
+    }
+
+    sines.push(new Sine(
+      Math.random() * 2000,
+      0.5 * Math.random(),
+      length,
+      offset
+    ));
+  }
+
+  const samples = maxLength * 44100;
+  console.log(maxLength, samples);
+  const data2 = Buffer.alloc(samples);
+  values = sines.map((s) => s.read(data2.length));
+
+  for (let k = 0; k < data2.length - 2; k += 2) {
+    const sum = values.reduce((sum, v) => sum + v.readInt16LE(k), 0);
+    data2.writeInt16LE(sum / 10, k);
+  }
+
+  console.log("Playing");
+  const rb = new ReadableBuffer(data2);
+  rb.pipe(speaker);
+});
